@@ -1,0 +1,55 @@
+version: "3.8"
+services:
+  db:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: ${DB_USER:-flowuser}
+      POSTGRES_PASSWORD: ${DB_PASS:-change_me}
+      POSTGRES_DB: ${DB_NAME:-flowboard}
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    restart: always
+
+  backend:
+    build: ./backend
+    environment:
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_USER: ${DB_USER:-flowuser}
+      DB_PASS: ${DB_PASS:-change_me}
+      DB_NAME: ${DB_NAME:-flowboard}
+      JWT_SECRET: ${JWT_SECRET}
+      CLIENT_ORIGIN: http://proxy
+    depends_on:
+      - db
+    restart: always
+    networks:
+      - internal
+
+  frontend:
+    build: ./frontend
+    depends_on:
+      - backend
+    restart: always
+    networks:
+      - internal
+
+  proxy:
+    image: nginx:stable-alpine
+    ports:
+      - "80:80"
+    volumes:
+      - ./deploy/nginx/proxy.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - frontend
+      - backend
+    restart: always
+    networks:
+      - internal
+
+volumes:
+  db_data:
+
+networks:
+  internal:
+    driver: bridge

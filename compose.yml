@@ -1,0 +1,52 @@
+services:
+  db:
+    image: postgres:15-alpine
+    container_name: flowboard-db
+    environment:
+      POSTGRES_USER: flowuser
+      POSTGRES_PASSWORD: flowpass
+      POSTGRES_DB: flowboard
+    volumes:
+      - db_data:/var/lib/postgresql/data
+      - ./db/init.sql:/docker-entrypoint-initdb.d/init.sql
+    ports:
+      - "5432:5432"
+
+  backend:
+    build: ./backend
+    container_name: flowboard-backend
+    environment:
+      # connexion à Postgres
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_USER: flowuser
+      DB_PASS: flowpass
+      DB_NAME: flowboard
+
+      # JWT secret etc.
+      JWT_SECRET: "super_secret_change_me"
+
+      # CORS origin pour autoriser le front
+      CLIENT_ORIGIN: "http://localhost:5173"
+    depends_on:
+      - db
+    ports:
+      - "4000:4000"
+    volumes:
+      - ./backend:/app
+      - /app/node_modules
+
+  frontend:
+    build: ./frontend
+    container_name: flowboard-frontend
+    environment:
+      VITE_API_URL: "http://localhost:4000"
+    depends_on:
+      - backend
+    ports:
+      - "5173:80"
+    # En production on utilise l'image builder (nginx) qui sert la build statique dans /usr/share/nginx/html.
+    # Ne pas binder le dossier source ici pour éviter d'écraser la build dans l'image.
+
+volumes:
+  db_data:
