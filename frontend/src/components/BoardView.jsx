@@ -1,7 +1,5 @@
-// BoardView — assemble les colonnes, gère les ajouts et le drag/drop
-// Fait par Cl@udiu
 import React, { useCallback, useEffect, useState } from "react";
-import Column from "./Column";
+import Board from "./kanban/Board";
 import { io } from "socket.io-client";
 
 export default function BoardView({ boardId }) {
@@ -38,53 +36,68 @@ export default function BoardView({ boardId }) {
     return () => socket.disconnect();
   }, [API, load]);
 
-  // helper : find column by id (kept for future features)
-  function _findColumn(colId) {
-    return board.columns.find((c) => String(c.id) === String(colId));
-  }
+  const handleDragEnd = async (result) => {
+    const { draggableId, destination, source } = result;
 
-  // drop handler: move card locally then emit event (optimistic)
-  async function handleDropCard(cardId, toColumnId) {
-    if (!board) return;
-    const fromCol = board.columns.find((c) =>
-      c.cards.some((card) => String(card.id) === String(cardId))
+    // Drop outside dropzone
+    if (!destination) return;
+
+    // Drop in same position
+    if (
+      destination.droppableId === source.droppableId &&
+      destination.index === source.index
+    ) {
+      return;
+    }
+
+    // Extract card and column data
+    const cardId = draggableId;
+    const toColumnId = destination.droppableId;
+
+    // Optimistic update
+    const sourceColumn = board.columns.find(
+      (c) => String(c.id) === String(source.droppableId)
     );
-    if (!fromCol) return;
-    if (String(fromCol.id) === String(toColumnId)) return; // nothing
+    const destColumn = board.columns.find(
+      (c) => String(c.id) === String(destination.droppableId)
+    );
+    const card = sourceColumn.cards[source.index];
 
-    // extract card
-    const card = fromCol.cards.find((c) => String(c.id) === String(cardId));
-    // optimistic update
     const newColumns = board.columns.map((col) => {
-      if (String(col.id) === String(fromCol.id)) {
-        return {
-          ...col,
-          cards: col.cards.filter((c) => String(c.id) !== String(cardId)),
-        };
+      if (String(col.id) === String(source.droppableId)) {
+        const newCards = Array.from(col.cards);
+        newCards.splice(source.index, 1);
+        return { ...col, cards: newCards };
       }
-      if (String(col.id) === String(toColumnId)) {
-        return { ...col, cards: [...col.cards, card] };
+      if (String(col.id) === String(destination.droppableId)) {
+        const newCards = Array.from(col.cards);
+        newCards.splice(destination.index, 0, card);
+        return { ...col, cards: newCards };
       }
       return col;
     });
+
     setBoard({ ...board, columns: newColumns });
 
-    // essayer d'appeler l'API pour persister (endpoint backend non-implementé pour updates dans ce repo)
+    // Persist change
     try {
       await fetch(`${API}/cards/move`, {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ cardId, toColumnId }),
+        body: JSON.stringify({
+          cardId,
+          toColumnId,
+          position: destination.index,
+        }),
       });
     } catch (err) {
-      // si échec, on reload le board
       console.warn("persist move failed, reloading board", err);
       load();
     }
-  }
+  };
 
-  // add column (optimistic) — persist if endpoint exists
+  // add column (optimistic)
   async function addColumn(title) {
     const newCol = {
       id: `tmp-${Date.now()}`,
@@ -139,19 +152,18 @@ export default function BoardView({ boardId }) {
   if (loading) return <div>Chargement...</div>;
   if (!board) return <div>Board introuvable</div>;
 
+  // Transform data structure for react-beautiful-dnd
+  const boardData = board.columns.reduce((acc, column) => {
+    acc[column.id] = {
+      title: column.title,
+      cards: column.cards,
+    };
+    return acc;
+  }, {});
+
   return (
     <div>
-      <div className="flex gap-4 overflow-x-auto pb-4">
-        {board.columns.map((col) => (
-          <Column
-            key={col.id}
-            column={col}
-            onDropCard={handleDropCard}
-            onAddCard={addCard}
-          />
-        ))}
-      </div>
-
+      <Board data={boardData} onDragEnd={handleDragEnd} />
       <div className="mt-4">
         <AddColumnForm onAdd={addColumn} />
       </div>
