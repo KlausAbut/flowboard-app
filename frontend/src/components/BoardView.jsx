@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from "react";
 import Board from "./kanban/Board";
 import { io } from "socket.io-client";
+import { useNavigate } from "react-router-dom";
 
 export default function BoardView({ boardId }) {
   const [board, setBoard] = useState(null);
@@ -35,6 +36,20 @@ export default function BoardView({ boardId }) {
 
     return () => socket.disconnect();
   }, [API, load]);
+
+  const navigate = useNavigate();
+
+  async function handleLogout() {
+    try {
+      await fetch(`${API}/auth/logout`, {
+        method: "POST",
+        credentials: "include",
+      });
+    } catch (err) {
+      console.warn("logout failed", err);
+    }
+    navigate("/login");
+  }
 
   const handleDragEnd = async (result) => {
     const { draggableId, destination, source } = result;
@@ -162,12 +177,35 @@ export default function BoardView({ boardId }) {
   }, {});
 
   return (
-    <div>
-      <Board data={boardData} onDragEnd={handleDragEnd} />
-      <div className="mt-4">
+    <div className="space-y-4">
+      <header className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold">{board.name}</h1>
+          <p className="text-sm text-gray-500">Tableau ID: {board.id}</p>
+        </div>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => navigator.clipboard?.writeText(window.location.href)}
+            className="text-sm px-3 py-1 border rounded text-gray-700 hover:bg-gray-100"
+          >
+            Copier le lien
+          </button>
+          <button
+            onClick={handleLogout}
+            className="text-sm px-3 py-1 bg-red-600 text-white rounded hover:bg-red-700"
+          >
+            Se déconnecter
+          </button>
+        </div>
+      </header>
+
+      <Board board={board} onDragEnd={handleDragEnd} onAddCard={addCard} />
+
+      <div className="mt-2">
         <AddColumnForm onAdd={addColumn} />
       </div>
-      <div className="mt-4">
+
+      <div>
         <small className="text-gray-500">
           Note: les actions d'écriture sont optimistes — le backend peut
           nécessiter l'ajout d'endpoints pour être persistées.
