@@ -5,7 +5,9 @@ FROM node:20-alpine AS builder
 WORKDIR /app
 
 COPY package.json package-lock.json* ./
-RUN npm ci
+# Allow legacy peer deps during CI to avoid peer dependency resolution failures
+# (react-beautiful-dnd has strict peer deps and this project uses React 19)
+RUN npm ci --legacy-peer-deps
 
 # Copier le reste et builder
 COPY . .

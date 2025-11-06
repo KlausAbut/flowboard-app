@@ -73,9 +73,6 @@ export default function BoardView({ boardId }) {
     const sourceColumn = board.columns.find(
       (c) => String(c.id) === String(source.droppableId)
     );
-    const destColumn = board.columns.find(
-      (c) => String(c.id) === String(destination.droppableId)
-    );
     const card = sourceColumn.cards[source.index];
 
     const newColumns = board.columns.map((col) => {
@@ -167,14 +164,7 @@ export default function BoardView({ boardId }) {
   if (loading) return <div>Chargement...</div>;
   if (!board) return <div>Board introuvable</div>;
 
-  // Transform data structure for react-beautiful-dnd
-  const boardData = board.columns.reduce((acc, column) => {
-    acc[column.id] = {
-      title: column.title,
-      cards: column.cards,
-    };
-    return acc;
-  }, {});
+  // board is passed directly to Board component
 
   return (
     <div className="space-y-4">
